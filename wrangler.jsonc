@@ -32,7 +32,7 @@
   // TEAM_DOMAIN: "https://<your-team-name>.cloudflareaccess.com"
   // POLICY_AUD: your application's AUD tag from Access
   "vars": {
-    "TEAM_DOMAIN": "<Add-Team-Domain>",
-    "POLICY_AUD": "<Add-Policy-AUD>",
+    "TEAM_DOMAIN": "https://nucibot.cloudflareaccess.com",
+    "POLICY_AUD": "6393f647856dababa251049c605ee5e0c1e07d5842bc7446476d752a3f6db449",
   },
 }
