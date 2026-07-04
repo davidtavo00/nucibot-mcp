@@ -9,7 +9,6 @@ export interface AccessIdentity {
 	sub: string;
 }
 
-const ALLOWED_EMAILS = new Set(["davidtavo00@gmail.com"]);
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> {
 	server = new McpServer({
@@ -26,9 +25,8 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 				content: [{ text: String(a + b), type: "text" }],
 			}),
 		);
-
-		this.server.tool(       
-		"generateImage",
+    this.server.tool(
+        "generateImage",
         "Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
         {
             prompt: z
@@ -51,10 +49,8 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
             };
         },
     );
-
-		}
-	}
 }
+
 
 /**
  * Verify the Access JWT using your team's public keys.
