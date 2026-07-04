@@ -27,28 +27,97 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 		);
 
 		this.server.tool(
-			"generateImage",
-			"Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
-			{
-				prompt: z
-					.string()
-					.describe("A text description of the image you want to generate."),
-				steps: z
-					.number()
-					.min(4)
-					.max(8)
-					.default(4)
-					.describe("Number of diffusion steps (4-8)."),
-			},
-			async ({ prompt, steps }) => {
-				const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-					prompt,
-					steps,
-				});
+		"math_post",
+		"Genera una imagen a partir de un HTML matemático (usando MathJax) enviando el código al servicio de renderizado. El LLM debe construir el HTML con las variables correspondientes: tema, problema LaTeX, solución LaTeX, color del tema, etc. La respuesta contiene la URL de la imagen generada.",
+		{
+			html_content: z
+			.string()
+			.describe("El HTML completo que se va a renderizar. Debe incluir los estilos, el fondo, las fórmulas LaTeX y los marcadores de posición sustituidos por el contenido real."),
+			width: z
+			.number()
+			.int()
+			.min(1)
+			.max(4096)
+			.default(1080)
+			.describe("Ancho de la imagen en píxeles."),
+			height: z
+			.number()
+			.int()
+			.min(1)
+			.max(4096)
+			.default(1350)
+			.describe("Alto de la imagen en píxeles."),
+		},
+		async ({ html_content, width, height }) => {
+			const endpoint = this.env.MATH_RENDER_ENDPOINT;
+			if (!endpoint) {
+			return {
+				content: [{ type: "text", text: "Error: No se ha configurado la URL de renderizado (MATH_RENDER_ENDPOINT)." }],
+				isError: true,
+			};
+			}
+
+			const payload = {
+			html: html_content,
+			width,
+			height,
+			};
+
+			const headers: HeadersInit = {
+			"Content-Type": "application/json",
+			};
+
+			try {
+			const response = await fetch(endpoint, {
+				method: "POST",
+				headers,
+				body: JSON.stringify(payload),
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
 				return {
-					content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
+				content: [
+					{
+					type: "text",
+					text: `Error del servicio de renderizado (${response.status}): ${errorText}`,
+					},
+				],
+				isError: true,
 				};
-			},
+			}
+
+			const data = await response.json();
+			if (data.status !== "success" || !data.image_url) {
+				return {
+				content: [{ type: "text", text: "Respuesta inesperada del servicio de renderizado." }],
+				isError: true,
+				};
+			}
+
+			// Devolver el enlace como recurso o simplemente como texto
+			// Opción 1: Como recurso (recomendado para imágenes)
+			return {
+				content: [
+				{
+					type: "resource",
+					resource: {
+					uri: data.image_url,
+					mimeType: "image/png", // Ajusta el MIME según lo que devuelva el servicio
+					text: `Imagen generada correctamente: ${data.message ?? ""}`,
+					},
+				},
+				],
+			};
+			// Opción 2: Solo texto con la URL (si prefieres que el LLM la mencione)
+			// return { content: [{ type: "text", text: `Imagen generada: ${data.image_url}` }] };
+			} catch (error) {
+			return {
+				content: [{ type: "text", text: `Error de conexión: ${error instanceof Error ? error.message : String(error)}` }],
+				isError: true,
+			};
+			}
+		}
 		);
 	}
 }
