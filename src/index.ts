@@ -50,6 +50,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
         },
     );
 }
+}
 
 
 /**
