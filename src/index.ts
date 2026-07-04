@@ -9,6 +9,8 @@ export interface AccessIdentity {
 	sub: string;
 }
 
+const ALLOWED_EMAILS = new Set(["<INSERT EMAIL>"]);
+
 export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> {
 	server = new McpServer({
 		name: "Access Self-Hosted MCP Demo",
@@ -25,35 +27,38 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 			}),
 		);
 
-		this.server.tool(
-			"generateImage",
-			"Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
-			{
-				prompt: z
-					.string()
-					.describe("A text description of the image you want to generate."),
-				steps: z
-					.number()
-					.min(4)
-					.max(8)
-					.default(4)
-					.describe("Number of diffusion steps (4-8)."),
-			},
-			async ({ prompt, steps }) => {
-				const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-					prompt,
-					steps,
-				});
-				return {
-					content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
-				};
-			},
-		);
-	} // ← cierra init()
-} // ← cierra la clase MyMCP
+		if (this.props && ALLOWED_EMAILS.has(this.props.email)) {
+			this.server.tool(
+				"generateImage",
+				"Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
+				{
+					prompt: z
+						.string()
+						.describe("A text description of the image you want to generate."),
+					steps: z
+						.number()
+						.min(4)
+						.max(8)
+						.default(4)
+						.describe("Number of diffusion steps (4-8)."),
+				},
+				async ({ prompt, steps }) => {
+					const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+						prompt,
+						steps,
+					});
+					return {
+						content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
+					};
+				},
+			);
+		}
+	}
+}
 
 /**
  * Verify the Access JWT using your team's public keys.
+ * See: https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/
  */
 async function verifyAccessJwt(token: string, env: Env): Promise<AccessIdentity> {
 	const JWKS = createRemoteJWKSet(new URL(`${env.TEAM_DOMAIN}/cdn-cgi/access/certs`));
