@@ -97,9 +97,20 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 
 			// Devolver el enlace como recurso o simplemente como texto
 			// Opción 1: Como recurso (recomendado para imágenes)
-
+			return {
+				content: [
+				{
+					type: "resource",
+					resource: {
+					uri: data.image_url,
+					mimeType: "image/png", // Ajusta el MIME según lo que devuelva el servicio
+					text: `Imagen generada correctamente: ${data.message ?? ""}`,
+					},
+				},
+				],
+			};
 			// Opción 2: Solo texto con la URL (si prefieres que el LLM la mencione)
-			return { content: [{ type: "text", text: `Imagen generada: ${data.image_url}` }] };
+			//return { content: [{ type: "text", text: `Imagen generada: ${data.image_url}` }] };
 			} catch (error) {
 			return {
 				content: [{ type: "text", text: `Error de conexión: ${error instanceof Error ? error.message : String(error)}` }],
