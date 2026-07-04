@@ -9,7 +9,7 @@ export interface AccessIdentity {
 	sub: string;
 }
 
-const ALLOWED_EMAILS = new Set(["<INSERT EMAIL>"]);
+const ALLOWED_EMAILS = new Set(["davidtavo00@gmail.com"]);
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> {
 	server = new McpServer({
