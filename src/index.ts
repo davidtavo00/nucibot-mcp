@@ -9,7 +9,7 @@ export interface AccessIdentity {
 	sub: string;
 }
 
-const ALLOWED_EMAILS = new Set(["<INSERT EMAIL>"]);
+const ALLOWED_EMAILS = new Set(["davidtavo00@gmail.com"]);
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> {
 	server = new McpServer({
@@ -27,30 +27,32 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 			}),
 		);
 
-		this.server.tool(
-			"generateImage",
-			"Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
-			{
-				prompt: z
-					.string()
-					.describe("A text description of the image you want to generate."),
-				steps: z
-					.number()
-					.min(4)
-					.max(8)
-					.default(4)
-					.describe("Number of diffusion steps (4-8)."),
-			},
-			async ({ prompt, steps }) => {
-				const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-					prompt,
-					steps,
-				});
-				return {
-					content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
-				};
-			},
-		);
+		if (this.props && ALLOWED_EMAILS.has(this.props.email)) {
+			this.server.tool(
+				"generateImage",
+				"Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
+				{
+					prompt: z
+						.string()
+						.describe("A text description of the image you want to generate."),
+					steps: z
+						.number()
+						.min(4)
+						.max(8)
+						.default(4)
+						.describe("Number of diffusion steps (4-8)."),
+				},
+				async ({ prompt, steps }) => {
+					const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+						prompt,
+						steps,
+					});
+					return {
+						content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
+					};
+				},
+			);
+		}
 	}
 }
 
