@@ -104,7 +104,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 					resource: {
 					uri: data.image_url,
 					mimeType: "image/png", // Ajusta el MIME según lo que devuelva el servicio
-					text: `Imagen generada correctamente: ${data.image_url ?? ""}`,
+					text: `Imagen generada correctamente`,
 					},
 				},
 				],
