@@ -1,4 +1,4 @@
-import { jwtVerify, createRemoteJWKSet } from "jose";
+import { jwtVerify, createRemoteJWKSet, importPKCS8, SignJWT } from "jose";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { z } from "zod";
@@ -17,61 +17,45 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 	});
 
 	async init() {
-		this.server.tool(
-			"add",
-			"Add two numbers the way only MCP can",
-			{ a: z.number(), b: z.number() },
-			async ({ a, b }) => ({
-				content: [{ text: String(a + b), type: "text" }],
-			}),
-		);
 
+
+		// 🎬 Herramienta de generación de video
 		this.server.tool(
-		"math_post",
-		"Genera una imagen a partir de un HTML matemático (usando MathJax) enviando el código al servicio de renderizado. El LLM debe construir el HTML con las variables correspondientes: tema, problema LaTeX, solución LaTeX, color del tema, etc. La respuesta contiene la URL de la imagen generada.",
+		"generate_video",
+		"Envía el código Manim y la resolución deseada al servicio de renderizado y devuelve la URL del video generado.",
 		{
-			html_content: z
+			code: z.string().describe("Código Manim completo a renderizar."),
+			resolution: z
 			.string()
-			.describe("El HTML completo que se va a renderizar. Debe incluir los estilos, el fondo, las fórmulas LaTeX y los marcadores de posición sustituidos por el contenido real."),
-			width: z
-			.number()
-			.int()
-			.min(1)
-			.max(4096)
-			.default(1080)
-			.describe("Ancho de la imagen en píxeles."),
-			height: z
-			.number()
-			.int()
-			.min(1)
-			.max(4096)
-			.default(1350)
-			.describe("Alto de la imagen en píxeles."),
+			.default("720, 1280")
+			.describe("Resolución en formato ANCHOxALTO, p.ej. '720, 1280'."),
 		},
-		async ({ html_content, width, height }) => {
-			const endpoint = this.env.MATH_RENDER_ENDPOINT;
+		async ({ code, resolution }) => {
+			const endpoint = this.env.VIDEO_GEN_ENDPOINT;
 			if (!endpoint) {
 			return {
-				content: [{ type: "text", text: "Error: No se ha configurado la URL de renderizado (MATH_RENDER_ENDPOINT)." }],
+				content: [
+				{
+					type: "text",
+					text: "Error: No se configuró VIDEO_GEN_ENDPOINT.",
+				},
+				],
 				isError: true,
 			};
 			}
 
-			const payload = {
-			html: html_content,
-			width,
-			height,
-			};
-
-			const headers: HeadersInit = {
-			"Content-Type": "application/json",
-			};
-
 			try {
+			// 1. Obtener token de identidad con la cuenta de servicio
+			const idToken = await this.getGoogleIdToken();
+
+			// 2. Enviar solicitud al Cloud Run
 			const response = await fetch(endpoint, {
 				method: "POST",
-				headers,
-				body: JSON.stringify(payload),
+				headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${idToken}`,
+				},
+				body: JSON.stringify({ code, resolution }),
 			});
 
 			if (!response.ok) {
@@ -80,7 +64,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 				content: [
 					{
 					type: "text",
-					text: `Error del servicio de renderizado (${response.status}): ${errorText}`,
+					text: `Error del servicio (${response.status}): ${errorText}`,
 					},
 				],
 				isError: true,
@@ -88,26 +72,91 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 			}
 
 			const data = await response.json();
-			if (data.status !== "success" || !data.image_url) {
+
+			if (data.status === "success" && data.video_url) {
 				return {
-				content: [{ type: "text", text: "Respuesta inesperada del servicio de renderizado." }],
-				isError: true,
+				content: [
+					{
+					type: "text",
+					text: `Video generado correctamente: ${data.video_url}`,
+					},
+				],
 				};
 			}
 
-			// Opción 2: Solo texto con la URL (si prefieres que el LLM la mencione)
-			return { content: [{ type: "text", text: `Imagen generada: ${data.image_url}` }] };
+			// Error controlado desde el servicio
+			return {
+				content: [
+				{
+					type: "text",
+					text: `El servicio respondió con error: ${data.message ?? "desconocido"}`,
+				},
+				],
+				isError: true,
+			};
 			} catch (error) {
 			return {
-				content: [{ type: "text", text: `Error de conexión: ${error instanceof Error ? error.message : String(error)}` }],
+				content: [
+				{
+					type: "text",
+					text: `Error de conexión: ${
+					error instanceof Error ? error.message : String(error)
+					}`,
+				},
+				],
 				isError: true,
 			};
 			}
 		}
 		);
 	}
-}
 
+	/**
+	 * Genera un Google ID Token usando la clave JSON de la cuenta de servicio.
+	 * Espera las variables de entorno SA_CLIENT_EMAIL y SA_PRIVATE_KEY.
+	 */
+	private async getGoogleIdToken(): Promise<string> {
+		const privateKey = this.env.SA_PRIVATE_KEY;
+		const clientEmail = this.env.SA_CLIENT_EMAIL;
+		const audience = this.env.VIDEO_GEN_ENDPOINT; // target_audience
+
+		if (!privateKey || !clientEmail || !audience) {
+		throw new Error(
+			"Faltan variables de entorno: SA_PRIVATE_KEY, SA_CLIENT_EMAIL o VIDEO_GEN_ENDPOINT"
+		);
+		}
+
+		const key = await importPKCS8(privateKey, "RS256");
+
+		const jwt = await new SignJWT({})
+		.setProtectedHeader({ alg: "RS256", typ: "JWT" })
+		.setIssuer(clientEmail)
+		.setSubject(clientEmail)
+		.setAudience("https://oauth2.googleapis.com/token")
+		.setIssuedAt()
+		.setExpirationTime("1h")
+		.setClaim("target_audience", audience)
+		.sign(key);
+
+		const res = await fetch("https://oauth2.googleapis.com/token", {
+		method: "POST",
+		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({
+			grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+			assertion: jwt,
+		}),
+		});
+
+		const data = await res.json();
+		if (!data.id_token) {
+		throw new Error(
+			`No se pudo obtener el id_token: ${JSON.stringify(data)}`
+		);
+		}
+
+		return data.id_token;
+	}
+	}
 /**
  * Verify the Access JWT using your team's public keys.
  * See: https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/
