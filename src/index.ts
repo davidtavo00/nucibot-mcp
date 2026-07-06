@@ -116,47 +116,48 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, AccessIdentity> 
 	 * Espera las variables de entorno SA_CLIENT_EMAIL y SA_PRIVATE_KEY.
 	 */
 	private async getGoogleIdToken(): Promise<string> {
-		const privateKey = this.env.SA_PRIVATE_KEY;
-		const clientEmail = this.env.SA_CLIENT_EMAIL;
-		const audience = this.env.VIDEO_GEN_ENDPOINT; // target_audience
+	const privateKey = this.env.SA_PRIVATE_KEY;
+	const clientEmail = this.env.SA_CLIENT_EMAIL;
+	const audience = this.env.VIDEO_GEN_ENDPOINT;
 
-		if (!privateKey || !clientEmail || !audience) {
+	if (!privateKey || !clientEmail || !audience) {
 		throw new Error(
-			"Faltan variables de entorno: SA_PRIVATE_KEY, SA_CLIENT_EMAIL o VIDEO_GEN_ENDPOINT"
+		"Faltan variables de entorno: SA_PRIVATE_KEY, SA_CLIENT_EMAIL o VIDEO_GEN_ENDPOINT"
 		);
-		}
+	}
 
-		const key = await importPKCS8(privateKey, "RS256");
+	const key = await importPKCS8(privateKey, "RS256");
 
-		const jwt = await new SignJWT({})
+	// ✅ Pasamos target_audience dentro del objeto del constructor
+	const jwt = await new SignJWT({ target_audience: audience })
 		.setProtectedHeader({ alg: "RS256", typ: "JWT" })
 		.setIssuer(clientEmail)
 		.setSubject(clientEmail)
 		.setAudience("https://oauth2.googleapis.com/token")
 		.setIssuedAt()
 		.setExpirationTime("1h")
-		.setClaim("target_audience", audience)
 		.sign(key);
 
-		const res = await fetch("https://oauth2.googleapis.com/token", {
+	const res = await fetch("https://oauth2.googleapis.com/token", {
 		method: "POST",
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: new URLSearchParams({
-			grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-			assertion: jwt,
+		grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+		assertion: jwt,
 		}),
-		});
+	});
 
-		const data = await res.json();
-		if (!data.id_token) {
+	const data = await res.json();
+	if (!data.id_token) {
 		throw new Error(
-			`No se pudo obtener el id_token: ${JSON.stringify(data)}`
+		`No se pudo obtener el id_token: ${JSON.stringify(data)}`
 		);
-		}
+	}
 
-		return data.id_token;
+	return data.id_token;
 	}
-	}
+
+}
 /**
  * Verify the Access JWT using your team's public keys.
  * See: https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/

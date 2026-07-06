@@ -35,6 +35,5 @@
   "vars": {
     "TEAM_DOMAIN": "https://nucibot.cloudflareaccess.com",
     "POLICY_AUD": "6393f647856dababa251049c605ee5e0c1e07d5842bc7446476d752a3f6db449",
-    "MATH_RENDER_ENDPOINT": "https://img-generator-64715685685.us-central1.run.app/render",
   },
 }
