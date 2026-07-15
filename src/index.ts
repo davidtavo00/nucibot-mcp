@@ -276,6 +276,6 @@ export default {
 			return new Response("Invalid token", { status: 403 });
 		}
 
-		return MyMCP.serve("/mcp").fetch(request, env, ctx);
+		return MyMCP.serve("/v1").fetch(request, env, ctx);
 	},
 } satisfies ExportedHandler<Env>;
